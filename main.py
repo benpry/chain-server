@@ -142,7 +142,7 @@ async def delete_all_chains():
 
 
 class SetupBody(BaseModel):
-    n_conditions: int
+    conditions: list
     n_chains_per_condition: int
 
 
@@ -152,7 +152,7 @@ async def set_up_chains(body: SetupBody):
     Create all the chains.
     """
     to_insert = []
-    for condition in range(1, body.n_conditions + 1):
+    for condition in body.conditions:
         for _ in range(body.n_chains_per_condition):
             to_insert.append(
                 {
