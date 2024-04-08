@@ -1,6 +1,7 @@
 import collections
 from pymongo import MongoClient
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from bson.objectid import ObjectId
 import yaml
@@ -16,6 +17,14 @@ collection = db[config["collection_name"]]
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/assign/{condition}")
 async def assign_to_chain(condition: int):
@@ -24,13 +33,29 @@ async def assign_to_chain(condition: int):
     Mark that chain as in use, then return it.
     """
     chain = collection.find_one(
-        {"condition": condition, "busy": False}, sort=[("completions", 1)]
+        {"condition": condition, "busy": False}, sort=[("writes", 1)]
     )
     if chain is None:
         return 404
 
     chain["busy"] = True
     collection.update_one({"_id": chain["_id"]}, {"$set": chain})
+
+    chain["_id"] = str(chain["_id"])
+    return chain
+
+
+@app.get("/assign/no-busy/{condition}")
+async def assign_to_chain_no_busy(condition: int):
+    """
+    Find the chain for the given condition that isn't in use and has the smallest number of completions.
+    Then return that chain without marking it busy.
+    """
+    chain = collection.find_one(
+        {"condition": condition, "busy": False}, sort=[("completions", 1)]
+    )
+    if chain is None:
+        return 404
 
     chain["_id"] = str(chain["_id"])
     return chain
@@ -48,6 +73,21 @@ async def get_chain(chain_id: str):
 
     chain["_id"] = str(chain["_id"])
     return chain
+
+
+@app.post("/free/{chain_id}")
+async def free_chain(chain_id: str):
+    """
+    Set the specified chain to no be busy anymore (without adding any data).
+    """
+    chain_id = ObjectId(chain_id)
+    chain = collection.find_one({"_id": chain_id})
+    if chain is None:
+        return 404
+
+    res = collection.update_one({"_id": chain_id}, {"$set": {"busy": False}})
+
+    return chain.raw_result
 
 
 class MessageBody(BaseModel):
@@ -71,7 +111,22 @@ async def add_message_to_chain(chain_id: str, body: MessageBody):
     message = body.message
     chain["messages"].append(message)
     chain["busy"] = False
-    chain["completions"] += 1
+    chain["writes"] += 1
+    chain["reads"] += 1
+    res = collection.update_one({"_id": chain_id}, {"$set": chain})
+
+    return res.raw_result
+
+
+@app.post("/chain/read/{chain_id}")
+async def update_chain_read_count(chain_id: str):
+    """
+    Add a message to the chain with the given chain_id, then mark the chain as no longer in use.
+    """
+    chain_id = ObjectId(chain_id)
+    chain = collection.find_one({"_id": chain_id})
+
+    chain["reads"] += 1
     res = collection.update_one({"_id": chain_id}, {"$set": chain})
 
     return res.raw_result
@@ -104,7 +159,8 @@ async def set_up_chains(body: SetupBody):
                     "condition": condition,
                     "messages": [],
                     "busy": False,
-                    "completions": 0,
+                    "writes": 0,
+                    "reads": 0,
                 }
             )
 
