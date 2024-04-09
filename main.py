@@ -49,7 +49,7 @@ async def assign_to_chain_no_busy(condition: int):
     Then return that chain without marking it busy.
     """
     chain = collection.find_one(
-        {"condition": condition, "busy": False}, sort=[("reads", 1)]
+        {"condition": condition, "busy": False}, sort=[("completions", 1)]
     )
     if chain is None:
         return 404
@@ -82,9 +82,7 @@ async def free_chain(chain_id: str):
     if chain is None:
         return 404
 
-    chain["reads"] += 1
-    chain["busy"] = False
-    res = collection.update_one({"_id": chain_id}, {"$set": chain})
+    res = collection.update_one({"_id": chain_id}, {"$set": {"busy": False}})
 
     return res.raw_result
 
