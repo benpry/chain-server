@@ -87,7 +87,7 @@ async def free_chain(chain_id: str):
 
     res = collection.update_one({"_id": chain_id}, {"$set": {"busy": False}})
 
-    return chain.raw_result
+    return res.raw_result
 
 
 class MessageBody(BaseModel):
