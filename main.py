@@ -12,8 +12,6 @@ db_client = MongoClient(os.environ["MONGO_URI"])
 db = db_client[os.environ["DB_NAME"]]
 collection = db[os.environ["COLLECTION_NAME"]]
 
-print(f"connected to {os.environ['MONGO_URI']}")
-
 app = FastAPI()
 
 app.add_middleware(
@@ -51,7 +49,7 @@ async def assign_to_chain_no_busy(condition: int):
     Then return that chain without marking it busy.
     """
     chain = collection.find_one(
-        {"condition": condition, "busy": False}, sort=[("completions", 1)]
+        {"condition": condition, "busy": False}, sort=[("reads", 1)]
     )
     if chain is None:
         return 404
@@ -84,7 +82,9 @@ async def free_chain(chain_id: str):
     if chain is None:
         return 404
 
-    res = collection.update_one({"_id": chain_id}, {"$set": {"busy": False}})
+    chain["reads"] += 1
+    chain["busy"] = False
+    res = collection.update_one({"_id": chain_id}, {"$set": chain})
 
     return res.raw_result
 
