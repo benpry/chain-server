@@ -12,6 +12,8 @@ db_client = MongoClient(os.environ["MONGO_URI"])
 db = db_client[os.environ["DB_NAME"]]
 collection = db[os.environ["COLLECTION_NAME"]]
 
+print(f"connected to {os.environ['MONGO_URI']}")
+
 app = FastAPI()
 
 app.add_middleware(
