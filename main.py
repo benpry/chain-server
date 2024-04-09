@@ -1,3 +1,4 @@
+import os
 import collections
 from pymongo import MongoClient
 from fastapi import FastAPI
@@ -6,14 +7,10 @@ from pydantic import BaseModel
 from bson.objectid import ObjectId
 import yaml
 
-# Load the configuration file
-with open("config.yml", "r") as f:
-    config = yaml.safe_load(f)
-
 # Connect to the MongoDB database
-db_client = MongoClient(config["mongo_uri"])
-db = db_client[config["db_name"]]
-collection = db[config["collection_name"]]
+db_client = MongoClient(os.environ["MONGO_URI"])
+db = db_client[os.environ["DB_NAME"]]
+collection = db[os.environ["COLLECTION_NAME"]]
 
 app = FastAPI()
 
