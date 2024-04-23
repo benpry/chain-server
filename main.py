@@ -24,7 +24,7 @@ app.add_middleware(
 
 
 @app.get("/assign/{condition}")
-async def assign_to_chain(condition: int):
+async def assign_to_chain(condition: str):
     """
     Find the chain for the given condition that isn't in use and has the smallest number of completions.
     Mark that chain as in use, then return it.
@@ -43,7 +43,7 @@ async def assign_to_chain(condition: int):
 
 
 @app.get("/assign/no-busy/{condition}")
-async def assign_to_chain_no_busy(condition: int):
+async def assign_to_chain_no_busy(condition: str):
     """
     Find the chain for the given condition that isn't in use and has the smallest number of completions.
     Then return that chain without marking it busy.
