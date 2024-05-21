@@ -1,16 +1,17 @@
-import os
 import collections
-from pymongo import MongoClient
+import os
+
+import yaml
+from bson.objectid import ObjectId
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from bson.objectid import ObjectId
-import yaml
+from pymongo import MongoClient
 
 # Connect to the MongoDB database
-db_client = MongoClient(os.environ["MONGO_URI"])
-db = db_client[os.environ["DB_NAME"]]
-collection = db[os.environ["COLLECTION_NAME"]]
+db_client = MongoClient(os.environ["MONGO_URI"] if "MONGO_URI" in os.environ else "mongodb://localhost:27017/")
+db = db_client[os.environ["DB_NAME"] if "DB_NAME" in os.environ else "chaindb"]
+collection = db[os.environ["COLLECTION_NAME"] if "COLLECTION_NAME" in os.environ else "chains"]
 
 app = FastAPI()
 
@@ -23,15 +24,31 @@ app.add_middleware(
 )
 
 
+async def sample_chain(condition: str):
+    """
+    Find a chain that begins with the "condition" string, isn't busy, and has the smallest number of writes and reads.
+    """
+    pipeline = [
+        {"$match": {"condition": {"$regex": f"^{condition}"}, "busy": False}},
+        {"$group": {"_id": {"reads": "$reads", "writes": "$writes"}, "chains": {"$push": "$$ROOT"}}},
+        {"$sort": {"_id.writes": 1, "_id.reads": 1}},
+        {"$limit": 1},
+        {"$unwind": "$chains"},
+        {"$replaceRoot": {"newRoot": "$chains"}},
+        {"$sample": {"size": 1}}
+    ]
+
+    chains = list(collection.aggregate(pipeline))[0]
+    return chains
+
+
 @app.get("/assign/{condition}")
 async def assign_to_chain(condition: str):
     """
     Find the chain for the given condition that isn't in use and has the smallest number of completions.
     Mark that chain as in use, then return it.
     """
-    chain = collection.find_one(
-        {"condition": condition, "busy": False}, sort=[("writes", 1)]
-    )
+    chain = await sample_chain(condition)
     if chain is None:
         return 404
 
@@ -48,9 +65,7 @@ async def assign_to_chain_no_busy(condition: str):
     Find the chain for the given condition that isn't in use and has the smallest number of completions.
     Then return that chain without marking it busy.
     """
-    chain = collection.find_one(
-        {"condition": condition, "busy": False}, sort=[("reads", 1)]
-    )
+    chain = await sample_chain(condition)
     if chain is None:
         return 404
 
@@ -59,7 +74,7 @@ async def assign_to_chain_no_busy(condition: str):
 
 
 @app.get("/chain/{chain_id}")
-async def get_chain(chain_id: str):
+async def get_chain_by_id(chain_id: str):
     """
     Get the chain with the given chain_id.
     """
