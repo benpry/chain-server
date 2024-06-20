@@ -24,12 +24,30 @@ app.add_middleware(
 )
 
 
-async def sample_chain(condition: str):
+async def sample_chain_to_write(condition: str):
     """
     Find a chain that begins with the "condition" string, isn't busy, and has the smallest number of writes and reads.
     """
     pipeline = [
         {"$match": {"condition": {"$regex": f"^{condition}"}, "busy": False}},
+        {"$group": {"_id": {"reads": "$reads", "writes": "$writes"}, "chains": {"$push": "$$ROOT"}}},
+        {"$sort": {"_id.writes": 1, "_id.reads": 1}},
+        {"$limit": 1},
+        {"$unwind": "$chains"},
+        {"$replaceRoot": {"newRoot": "$chains"}},
+        {"$sample": {"size": 1}}
+    ]
+
+    chains = list(collection.aggregate(pipeline))[0]
+    return chains
+
+async def sample_chain_to_read(condition: str):
+    """
+    Find a chain that begins with the "condition" string, isn't busy, and has the smallest number of writes and reads.
+    Plus make sure it has at least one write.
+    """
+    pipeline = [
+        {"$match": {"condition": {"$regex": f"^{condition}"}, "busy": False, "writes": {"$gt": 0}}},
         {"$group": {"_id": {"reads": "$reads", "writes": "$writes"}, "chains": {"$push": "$$ROOT"}}},
         {"$sort": {"_id.writes": 1, "_id.reads": 1}},
         {"$limit": 1},
@@ -48,7 +66,7 @@ async def assign_to_chain(condition: str):
     Find the chain for the given condition that isn't in use and has the smallest number of completions.
     Mark that chain as in use, then return it.
     """
-    chain = await sample_chain(condition)
+    chain = await sample_chain_to_write(condition)
     if chain is None:
         return 404
 
@@ -65,7 +83,7 @@ async def assign_to_chain_no_busy(condition: str):
     Find the chain for the given condition that isn't in use and has the smallest number of completions.
     Then return that chain without marking it busy.
     """
-    chain = await sample_chain(condition)
+    chain = await sample_chain_to_read(condition)
     if chain is None:
         return 404
 
