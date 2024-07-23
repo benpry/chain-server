@@ -9,9 +9,15 @@ from pydantic import BaseModel
 from pymongo import MongoClient
 
 # Connect to the MongoDB database
-db_client = MongoClient(os.environ["MONGO_URI"] if "MONGO_URI" in os.environ else "mongodb://localhost:27017/")
+db_client = MongoClient(
+    os.environ["MONGO_URI"]
+    if "MONGO_URI" in os.environ
+    else "mongodb://localhost:27017/"
+)
 db = db_client[os.environ["DB_NAME"] if "DB_NAME" in os.environ else "chaindb"]
-collection = db[os.environ["COLLECTION_NAME"] if "COLLECTION_NAME" in os.environ else "chains"]
+collection = db[
+    os.environ["COLLECTION_NAME"] if "COLLECTION_NAME" in os.environ else "chains"
+]
 
 app = FastAPI()
 
@@ -30,16 +36,22 @@ async def sample_chain_to_write(condition: str):
     """
     pipeline = [
         {"$match": {"condition": {"$regex": f"^{condition}"}, "busy": False}},
-        {"$group": {"_id": {"reads": "$reads", "writes": "$writes"}, "chains": {"$push": "$$ROOT"}}},
+        {
+            "$group": {
+                "_id": {"reads": "$reads", "writes": "$writes"},
+                "chains": {"$push": "$$ROOT"},
+            }
+        },
         {"$sort": {"_id.writes": 1, "_id.reads": 1}},
         {"$limit": 1},
         {"$unwind": "$chains"},
         {"$replaceRoot": {"newRoot": "$chains"}},
-        {"$sample": {"size": 1}}
+        {"$sample": {"size": 1}},
     ]
 
     chains = list(collection.aggregate(pipeline))[0]
     return chains
+
 
 async def sample_chain_to_read(condition: str):
     """
@@ -47,13 +59,24 @@ async def sample_chain_to_read(condition: str):
     Plus make sure it has at least one write.
     """
     pipeline = [
-        {"$match": {"condition": {"$regex": f"^{condition}"}, "busy": False, "writes": {"$gt": 0}}},
-        {"$group": {"_id": {"reads": "$reads", "writes": "$writes"}, "chains": {"$push": "$$ROOT"}}},
+        {
+            "$match": {
+                "condition": {"$regex": f"^{condition}"},
+                "busy": False,
+                "writes": {"$gt": 0},
+            }
+        },
+        {
+            "$group": {
+                "_id": {"reads": "$reads", "writes": "$writes"},
+                "chains": {"$push": "$$ROOT"},
+            }
+        },
         {"$sort": {"_id.writes": 1, "_id.reads": 1}},
         {"$limit": 1},
         {"$unwind": "$chains"},
         {"$replaceRoot": {"newRoot": "$chains"}},
-        {"$sample": {"size": 1}}
+        {"$sample": {"size": 1}},
     ]
 
     chains = list(collection.aggregate(pipeline))[0]
@@ -121,7 +144,7 @@ async def free_chain(chain_id: str):
 
 
 class MessageBody(BaseModel):
-    message: str
+    message: list
 
 
 @app.post("/chain/complete/{chain_id}")
