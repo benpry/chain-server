@@ -144,7 +144,7 @@ async def free_chain(chain_id: str):
 
 
 class MessageBody(BaseModel):
-    message: list
+    message: dict
 
 
 @app.post("/chain/complete/{chain_id}")
