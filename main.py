@@ -156,11 +156,9 @@ async def add_message_to_chain(chain_id: str, body: MessageBody):
     chain = collection.find_one({"_id": chain_id})
 
     if chain is None:
-        print("chain not found")
         return "chain not found"
 
     if not chain["busy"]:
-        print("chain not in use")
         return "chain not in use"
 
     message = body.message
@@ -169,7 +167,6 @@ async def add_message_to_chain(chain_id: str, body: MessageBody):
     chain["writes"] += 1
     chain["reads"] += 1
     res = collection.update_one({"_id": chain_id}, {"$set": chain})
-    print(f"response from update: {res}")
 
     return res.raw_result
 
